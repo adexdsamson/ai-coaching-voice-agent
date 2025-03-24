@@ -18,13 +18,14 @@ function DiscussionRoom() {
   const recorder = useRef(null);
   const { roomid } = useParams();
   const realtimeTranscriber = useRef(null);
+  const [transcribe, setTranscribe] = useState();
+  const [conversation, setConversation] = useState([]);
   const [enableMic, setEnableMic] = useState(false);
-  const [transcribe, setTranscribe] = useState()
   const DiscussionRoomData = useQuery(api.DiscussionRoom.GetDiscussionRoom, {
     id: roomid,
   });
 
-  let texts = {}
+  let texts = {};
 
   if (!DiscussionRoomData) return <p>loading....</p>;
 
@@ -42,12 +43,19 @@ function DiscussionRoom() {
       sampleRate: 16_000,
     });
 
-    realtimeTranscriber.current.on("transcript", (transcript) => {
+    realtimeTranscriber.current.on("transcript", async (transcript) => {
       console.log("transcript", transcript);
 
+      if (transcript.message_type === "FinalTranscript") {
+        setConversation((prev) => [
+          ...prev,
+          { role: "user", content: transcript.text },
+        ]);
+      }
+
       texts[transcript.audio_start] = transcript.text;
-      const kets = Object.keys(texts);
-      const sortedKeys = kets.sort((a, b) => a - b);
+      const keys = Object.keys(texts);
+      const sortedKeys = keys.sort((a, b) => a - b);
       const sortedTexts = sortedKeys.map((key) => texts[key]);
       const finalText = sortedTexts.join(" ");
       console.log("finalText", finalText);
@@ -88,8 +96,6 @@ function DiscussionRoom() {
           },
         });
 
-        console.log("recorder", recorder.current);
-
         recorder.current?.startRecording?.();
       })
       .catch((error) => {
@@ -99,10 +105,9 @@ function DiscussionRoom() {
 
   const disconnect = async (e) => {
     e.preventDefault();
-    console.log("disconnect", recorder.current);
 
     if (recorder.current) {
-      await realtimeTranscriber.current.disconnect();
+      await realtimeTranscriber.current.close();
       recorder.current.pauseRecording();
       recorder.current = null;
       setEnableMic(false);
@@ -152,9 +157,7 @@ function DiscussionRoom() {
       </div>
 
       <div>
-        <h2>
-            {transcribe}
-        </h2>
+        <h2>{transcribe}</h2>
       </div>
     </div>
   );
